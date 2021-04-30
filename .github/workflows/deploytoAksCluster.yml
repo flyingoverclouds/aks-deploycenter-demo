@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: mcmgdevnccr.azurecr.io
+        username: ${{ secrets.acr_mcmgdevnccr_username }}
+        password: ${{ secrets.acr_mcmgdevnccr_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/AmstradCPC464" -f  "AmstradCPC464/Dockerfile" -t mcmgdevnccr.azurecr.io/akscna:${{ github.sha }} --label dockerfile-path=AmstradCPC464/Dockerfile
+        docker push mcmgdevnccr.azurecr.io/akscna:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_akscna_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep cpc464-test | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace cpc464-test`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: cpc464-test
+        container-registry-url: mcmgdevnccr.azurecr.io
+        container-registry-username: ${{ secrets.acr_mcmgdevnccr_username }}
+        container-registry-password: ${{ secrets.acr_mcmgdevnccr_password }}
+        secret-name: akscnadockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: cpc464-test
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          mcmgdevnccr.azurecr.io/akscna:${{ github.sha }}
+        imagepullsecrets: |
+          akscnadockerauth
