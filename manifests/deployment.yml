@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "akscna-29ca"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "akscna-29ca"
+  template:
+    metadata:
+      labels:
+        app: "akscna-29ca"
+    spec:
+      containers:
+        - name: "akscna-29ca"
+          image: "mcmgdevnccr.azurecr.io/akscna"
+          ports:
+          - containerPort: 8464
